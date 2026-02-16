@@ -1,0 +1,42 @@
+# Data directory (stored on Google Drive in production)
+data/
+
+# Environment variables
+.env
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+venv/
+env/
+dist/
+build/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+tmpclaude-*
+debug_claude_response.txt
+nul
+
+# Logs
+*.log
+
+# Test documents
+test-docs/
+test_results.txt
+
+# Service account credentials (NEVER commit)
+*credentials*.json
+*service-account*.json

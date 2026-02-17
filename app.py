@@ -1267,11 +1267,28 @@ def main():
     with tabs[2]:
         tab_validation(index)
     with tabs[3]:
-        tab_enrichissement(index)
+        try:
+            tab_enrichissement(index)
+        except ValueError as e:
+            st.error(f"Erreur de configuration : {e}")
+            st.info("Vérifiez que ANTHROPIC_API_KEY est correctement définie dans les secrets.")
+            # Diagnostic
+            import streamlit as _st
+            with st.expander("Diagnostic secrets"):
+                keys_found = list(_st.secrets.keys()) if hasattr(_st, "secrets") else []
+                st.write(f"Clés trouvées dans st.secrets : {keys_found}")
+                st.write(f"config.ANTHROPIC_API_KEY vide : {not config.ANTHROPIC_API_KEY}")
+                st.write(f"config.STORAGE_MODE : {config.STORAGE_MODE}")
     with tabs[4]:
-        tab_indexation(index)
+        try:
+            tab_indexation(index)
+        except ValueError as e:
+            st.error(f"Erreur de configuration : {e}")
     with tabs[5]:
-        tab_admin(index)
+        try:
+            tab_admin(index)
+        except ValueError as e:
+            st.error(f"Erreur de configuration : {e}")
 
 
 if __name__ == "__main__":

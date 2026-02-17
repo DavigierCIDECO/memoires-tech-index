@@ -179,33 +179,12 @@ def display_result(doc: Dict, rank: int, query: str = ""):
             # Lien vers le document
             _display_document_link(doc)
 
-            # Aperçu des illustrations exceptionnelles
+            # Aperçu des illustrations (sans charger les images)
             if doc.get("special_illustrations"):
                 illustrations = doc["special_illustrations"]
                 if illustrations:
-                    st.markdown(f"**🖼️ Illustrations exceptionnelles:** {len(illustrations)}")
-
-                    illustrations_with_images = [ill for ill in illustrations if ill.get("image_path")]
-                    if illustrations_with_images:
-                        if query:
-                            scored_illustrations = [(ill, score_illustration_relevance(ill, query))
-                                                  for ill in illustrations_with_images]
-                            scored_illustrations.sort(key=lambda x: x[1], reverse=True)
-                            sorted_illustrations = [ill for ill, score in scored_illustrations]
-                        else:
-                            sorted_illustrations = illustrations_with_images
-
-                        img_cols = st.columns(min(3, len(sorted_illustrations)))
-                        for idx, illust in enumerate(sorted_illustrations[:3]):
-                            with img_cols[idx]:
-                                img = _load_image_from_storage(illust["image_path"])
-                                if img:
-                                    st.image(img, width=200)
-                                    cat = illust.get('category', 'N/A')
-                                    st.caption(f"[{cat}] {illust.get('type', 'Illustration')}")
-
-                        if len(illustrations_with_images) > 3:
-                            st.caption(f"+ {len(illustrations_with_images) - 3} autre(s) image(s)")
+                    n_with_images = sum(1 for ill in illustrations if ill.get("image_path"))
+                    st.markdown(f"**🖼️ Illustrations exceptionnelles:** {len(illustrations)} ({n_with_images} avec image)")
 
                     first_illust = illustrations[0]
                     conf_emoji = {
@@ -363,7 +342,7 @@ def tab_recherche(index):
         with st.spinner("🔄 Recherche en cours..."):
             try:
                 finder = SimilarityFinder()
-                results = finder.find_similar(query, is_file=False, max_results=10)
+                results = finder.find_similar(query, is_file=False, max_results=5)
 
                 if results:
                     st.success(f"✅ {len(results)} document(s) similaire(s) trouvé(s)")
@@ -1233,23 +1212,6 @@ def main():
 
     if not index.get("documents"):
         st.warning("⚠️ L'index est vide. Utilisez l'onglet Indexation pour indexer des documents.")
-        # Diagnostic
-        with st.expander("Diagnostic connexion"):
-            st.write(f"STORAGE_MODE = {config.STORAGE_MODE}")
-            st.write(f"GDRIVE_DATA_FOLDER_ID = {config.GDRIVE_DATA_FOLDER_ID}")
-            st.write(f"GDRIVE_DOCS_FOLDER_ID = {config.GDRIVE_DOCS_FOLDER_ID}")
-            st.write(f"ANTHROPIC_API_KEY définie = {bool(config.ANTHROPIC_API_KEY)}")
-            st.write(f"gcp_service_account dans secrets = {'gcp_service_account' in st.secrets}")
-            try:
-                storage = _get_storage()
-                st.write(f"Storage type = {type(storage).__name__}")
-                # Test direct de lecture
-                data = storage.read_json("index")
-                st.write(f"read_json('index') = {type(data).__name__ if data else 'None'}")
-                if data:
-                    st.write(f"Nombre de documents = {len(data.get('documents', []))}")
-            except Exception as e:
-                st.error(f"Erreur storage : {e}")
 
     # Statistiques en haut
     col1, col2, col3, col4 = st.columns(4)

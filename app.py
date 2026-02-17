@@ -70,8 +70,9 @@ def _get_storage():
     return config.get_storage()
 
 
+@st.cache_data(ttl=60)
 def _load_index():
-    """Charge l'index via le storage backend."""
+    """Charge l'index via le storage backend. Cached 60s."""
     storage = _get_storage()
     data = storage.read_json("index")
     if data:
@@ -86,24 +87,34 @@ def _save_index(index):
     storage.write_json("index", index)
 
 
-def _load_image_from_storage(image_path: str):
-    """Charge une image via le storage backend.
-
-    Returns:
-        PIL Image ou None
-    """
+@st.cache_data(ttl=300)
+def _load_image_bytes(image_path: str):
+    """Charge les bytes d'une image via le storage backend. Cached 5 min."""
     storage = _get_storage()
     data = storage.read_image(image_path)
     if data:
-        try:
-            return Image.open(BytesIO(data))
-        except Exception:
-            return None
+        return data
     # Fallback: essayer en tant que chemin local direct
     local_path = Path(config.DATA_DIR.parent) / image_path
     if local_path.exists():
         try:
-            return Image.open(local_path)
+            with open(local_path, "rb") as f:
+                return f.read()
+        except Exception:
+            return None
+    return None
+
+
+def _load_image_from_storage(image_path: str):
+    """Charge une image via le storage backend (avec cache).
+
+    Returns:
+        PIL Image ou None
+    """
+    data = _load_image_bytes(image_path)
+    if data:
+        try:
+            return Image.open(BytesIO(data))
         except Exception:
             return None
     return None
@@ -179,12 +190,33 @@ def display_result(doc: Dict, rank: int, query: str = ""):
             # Lien vers le document
             _display_document_link(doc)
 
-            # Aperçu des illustrations (sans charger les images)
+            # Aperçu des illustrations exceptionnelles
             if doc.get("special_illustrations"):
                 illustrations = doc["special_illustrations"]
                 if illustrations:
-                    n_with_images = sum(1 for ill in illustrations if ill.get("image_path"))
-                    st.markdown(f"**🖼️ Illustrations exceptionnelles:** {len(illustrations)} ({n_with_images} avec image)")
+                    st.markdown(f"**🖼️ Illustrations exceptionnelles:** {len(illustrations)}")
+
+                    illustrations_with_images = [ill for ill in illustrations if ill.get("image_path")]
+                    if illustrations_with_images:
+                        if query:
+                            scored_illustrations = [(ill, score_illustration_relevance(ill, query))
+                                                  for ill in illustrations_with_images]
+                            scored_illustrations.sort(key=lambda x: x[1], reverse=True)
+                            sorted_illustrations = [ill for ill, score in scored_illustrations]
+                        else:
+                            sorted_illustrations = illustrations_with_images
+
+                        img_cols = st.columns(min(3, len(sorted_illustrations)))
+                        for idx, illust in enumerate(sorted_illustrations[:3]):
+                            with img_cols[idx]:
+                                img = _load_image_from_storage(illust["image_path"])
+                                if img:
+                                    st.image(img, width=200)
+                                    cat = illust.get('category', 'N/A')
+                                    st.caption(f"[{cat}] {illust.get('type', 'Illustration')}")
+
+                        if len(illustrations_with_images) > 3:
+                            st.caption(f"+ {len(illustrations_with_images) - 3} autre(s) image(s)")
 
                     first_illust = illustrations[0]
                     conf_emoji = {
@@ -342,7 +374,7 @@ def tab_recherche(index):
         with st.spinner("🔄 Recherche en cours..."):
             try:
                 finder = SimilarityFinder()
-                results = finder.find_similar(query, is_file=False, max_results=5)
+                results = finder.find_similar(query, is_file=False, max_results=10)
 
                 if results:
                     st.success(f"✅ {len(results)} document(s) similaire(s) trouvé(s)")

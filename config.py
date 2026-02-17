@@ -54,6 +54,7 @@ TEMPORAL_WEIGHTING_ENABLED = True  # Activer/désactiver la pondération tempore
 TEMPORAL_BONUS_RECENT = 0.15  # Bonus +15% pour MTs < 3 mois
 TEMPORAL_BONUS_MEDIUM = 0.10  # Bonus +10% pour MTs 3-6 mois
 TEMPORAL_BONUS_OLD = 0.05     # Bonus +5% pour MTs 6-12 mois
+TEMPORAL_CUTOFF_DATE = "2026-01-04"  # Documents indexés avant cette date = pas de bonus
 
 
 def get_storage():

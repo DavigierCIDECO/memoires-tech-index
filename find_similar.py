@@ -289,6 +289,13 @@ TYPE: [type de document]"""
         try:
             # Parser la date ISO format
             indexed_date = datetime.fromisoformat(indexed_at)
+
+            # Documents indexés avant la date de cutoff = aucun bonus
+            if hasattr(config, "TEMPORAL_CUTOFF_DATE") and config.TEMPORAL_CUTOFF_DATE:
+                cutoff = datetime.fromisoformat(config.TEMPORAL_CUTOFF_DATE)
+                if indexed_date < cutoff:
+                    return 0.0
+
             now = datetime.now()
             age = now - indexed_date
 

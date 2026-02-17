@@ -61,17 +61,15 @@ class GDriveStorage(StorageBackend):
 
         creds = None
 
-        # 1. Essayer depuis st.secrets (JSON string)
+        # 1. Essayer depuis st.secrets (table TOML [gcp_service_account])
         try:
             import streamlit as st
 
-            if hasattr(st, "secrets"):
-                sa_json = st.secrets.get("GOOGLE_SERVICE_ACCOUNT_JSON", "")
-                if sa_json:
-                    info = json.loads(sa_json) if isinstance(sa_json, str) else dict(sa_json)
-                    creds = service_account.Credentials.from_service_account_info(
-                        info, scopes=SCOPES
-                    )
+            if hasattr(st, "secrets") and "gcp_service_account" in st.secrets:
+                info = dict(st.secrets["gcp_service_account"])
+                creds = service_account.Credentials.from_service_account_info(
+                    info, scopes=SCOPES
+                )
         except Exception:
             pass
 

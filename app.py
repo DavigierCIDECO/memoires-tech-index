@@ -1233,6 +1233,23 @@ def main():
 
     if not index.get("documents"):
         st.warning("⚠️ L'index est vide. Utilisez l'onglet Indexation pour indexer des documents.")
+        # Diagnostic
+        with st.expander("Diagnostic connexion"):
+            st.write(f"STORAGE_MODE = {config.STORAGE_MODE}")
+            st.write(f"GDRIVE_DATA_FOLDER_ID = {config.GDRIVE_DATA_FOLDER_ID}")
+            st.write(f"GDRIVE_DOCS_FOLDER_ID = {config.GDRIVE_DOCS_FOLDER_ID}")
+            st.write(f"ANTHROPIC_API_KEY définie = {bool(config.ANTHROPIC_API_KEY)}")
+            st.write(f"gcp_service_account dans secrets = {'gcp_service_account' in st.secrets}")
+            try:
+                storage = _get_storage()
+                st.write(f"Storage type = {type(storage).__name__}")
+                # Test direct de lecture
+                data = storage.read_json("index")
+                st.write(f"read_json('index') = {type(data).__name__ if data else 'None'}")
+                if data:
+                    st.write(f"Nombre de documents = {len(data.get('documents', []))}")
+            except Exception as e:
+                st.error(f"Erreur storage : {e}")
 
     # Statistiques en haut
     col1, col2, col3, col4 = st.columns(4)

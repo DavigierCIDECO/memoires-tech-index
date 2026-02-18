@@ -895,7 +895,7 @@ def tab_enrichissement(index):
 def tab_indexation(index):
     """Onglet d'indexation de nouveaux documents."""
     st.markdown("### 📥 Indexation de Documents")
-    st.caption("Indexez de nouveaux mémoires techniques ou réindexez des documents existants")
+    st.caption("Indexez de nouveaux mémoires techniques depuis le Drive partagé")
 
     current_user = get_current_user()
 
@@ -906,165 +906,134 @@ def tab_indexation(index):
         st.warning(f"🔒 Indexation verrouillée par **{lock_info.get('owner', '?')}**. Veuillez attendre.")
         return
 
-    # Mode d'indexation
-    indexation_mode = st.radio(
-        "Que souhaitez-vous indexer ?",
-        ["📁 Dossier complet", "📄 Fichier(s) individuel(s)", "🔄 Utiliser le chemin par défaut (.env)"],
-    )
+    # Lister les documents du Drive
+    with st.spinner("Chargement de la liste des documents du Drive..."):
+        drive_docs = storage.list_documents()
+
+    if not drive_docs:
+        st.info("📁 Aucun document trouvé dans le dossier Drive.")
+        return
+
+    # Identifier les documents déjà indexés (par gdrive_file_id ou par nom)
+    indexed_drive_ids = set()
+    indexed_filenames = set()
+    for doc in index.get("documents", []):
+        if doc.get("gdrive_file_id"):
+            indexed_drive_ids.add(doc["gdrive_file_id"])
+        indexed_filenames.add(doc.get("filename", ""))
+
+    new_docs = [d for d in drive_docs
+                if d["id"] not in indexed_drive_ids and d["name"] not in indexed_filenames]
+    already_indexed = [d for d in drive_docs if d not in new_docs]
+
+    # Affichage des métriques
+    col1, col2 = st.columns(2)
+    with col1:
+        st.metric("📄 Documents dans le Drive", len(drive_docs))
+    with col2:
+        st.metric("🆕 Non encore indexés", len(new_docs))
+
+    st.markdown("---")
 
     force_reindex = st.checkbox(
         "🔄 Forcer la réindexation (même pour fichiers déjà indexés)",
         value=False,
     )
 
-    st.markdown("---")
-
-    path_to_index = None
-
-    if indexation_mode == "📁 Dossier complet":
-        st.markdown("**1️⃣ Spécifiez le chemin du dossier**")
-        if "folder_path_input" not in st.session_state:
-            st.session_state["folder_path_input"] = config.LOCAL_DOCS_PATH or ""
-
-        folder_path = st.text_input(
-            "Chemin du dossier:",
-            placeholder="C:\\Users\\David\\Documents\\MTs",
-            key="folder_path_input"
-        )
-
-        if folder_path:
-            folder_path_obj = Path(folder_path)
-            if folder_path_obj.exists() and folder_path_obj.is_dir():
-                file_count = len([f for f in folder_path_obj.rglob("*")
-                                 if f.suffix.lower() in config.SUPPORTED_EXTENSIONS
-                                 and not f.name.startswith('~$')])
-                st.info(f"📊 {file_count} fichier(s) trouvé(s) dans ce dossier")
-                path_to_index = folder_path
-            elif folder_path:
-                st.error("❌ Ce dossier n'existe pas ou n'est pas accessible")
-
-    elif indexation_mode == "📄 Fichier(s) individuel(s)":
-        st.markdown("**1️⃣ Spécifiez le(s) chemin(s) des fichiers**")
-        files_input = st.text_area(
-            "Chemins des fichiers (un par ligne):",
-            height=120,
-            placeholder="C:\\MTs\\Document1.docx\nC:\\MTs\\Document2.pdf",
-            key="files_input_area"
-        )
-
-        if files_input:
-            file_paths = [line.strip() for line in files_input.split('\n') if line.strip()]
-            valid_files = [fp for fp in file_paths if Path(fp).exists() and Path(fp).is_file()]
-            invalid_files = [fp for fp in file_paths if fp not in valid_files]
-
-            if valid_files:
-                st.success(f"✅ {len(valid_files)} fichier(s) valide(s)")
-                path_to_index = valid_files[0] if len(valid_files) == 1 else None
-                if len(valid_files) > 1:
-                    st.session_state["files_to_index"] = valid_files
-            if invalid_files:
-                st.error(f"❌ {len(invalid_files)} fichier(s) invalide(s)")
-
+    # Liste des documents à indexer
+    if force_reindex:
+        available_docs = drive_docs
     else:
-        if config.LOCAL_DOCS_PATH:
-            st.info(f"📁 Chemin configuré: `{config.LOCAL_DOCS_PATH}`")
-            default_path_obj = Path(config.LOCAL_DOCS_PATH)
-            if default_path_obj.exists():
-                file_count = len([f for f in default_path_obj.rglob("*")
-                                 if f.suffix.lower() in config.SUPPORTED_EXTENSIONS
-                                 and not f.name.startswith('~$')])
-                st.info(f"📊 {file_count} fichier(s) trouvé(s)")
-                path_to_index = config.LOCAL_DOCS_PATH
-            else:
-                st.error("❌ Le chemin par défaut n'existe pas")
-        else:
-            st.warning("⚠️ Aucun chemin par défaut configuré dans le fichier .env")
+        available_docs = new_docs
+
+    if not available_docs:
+        st.success("✅ Tous les documents du Drive sont déjà indexés !")
+        return
+
+    st.markdown(f"**{len(available_docs)} document(s) disponible(s) :**")
+
+    # Sélection par checkboxes
+    select_all = st.checkbox("Tout sélectionner", value=False, key="select_all_docs")
+
+    selected_docs = []
+    for doc in available_docs:
+        size_kb = int(doc.get("size", 0)) / 1024
+        label = f"{doc['name']} ({size_kb:.0f} Ko)"
+        if st.checkbox(label, value=select_all, key=f"doc_{doc['id']}"):
+            selected_docs.append(doc)
 
     st.markdown("---")
 
-    col1, col2, col3 = st.columns([0.4, 0.3, 0.3])
+    col1, col2, col3 = st.columns([0.3, 0.4, 0.3])
     with col2:
         index_btn = st.button(
-            "🚀 Lancer l'indexation",
+            f"🚀 Indexer {len(selected_docs)} document(s)",
             type="primary",
             use_container_width=True,
-            disabled=(path_to_index is None and "files_to_index" not in st.session_state)
+            disabled=len(selected_docs) == 0,
         )
 
-    if index_btn:
-        paths_to_process = []
-        if "files_to_index" in st.session_state:
-            paths_to_process = st.session_state["files_to_index"]
-        elif path_to_index:
-            paths_to_process = [path_to_index]
+    if index_btn and selected_docs:
+        # Acquérir le verrou
+        if not storage.acquire_lock("indexation", current_user):
+            st.error("🔒 Impossible d'acquérir le verrou d'indexation")
+            return
 
-        if paths_to_process:
-            # Acquérir le verrou
-            if not storage.acquire_lock("indexation", current_user):
-                st.error("🔒 Impossible d'acquérir le verrou d'indexation")
-                return
+        try:
+            indexer = DocumentIndexer()
 
-            try:
-                indexer = DocumentIndexer()
+            log_container = st.container()
+            progress_bar = st.progress(0)
+            status_text = st.empty()
 
-                all_files = []
-                for path in paths_to_process:
-                    path_obj = Path(path)
-                    files = indexer.get_files_to_process(path_obj)
-                    all_files.extend(files)
+            total_indexed = 0
+            total_skipped = 0
+            total_errors = 0
 
-                if not all_files:
-                    st.warning("⚠️ Aucun fichier à indexer trouvé")
-                else:
-                    st.info(f"📁 {len(all_files)} fichier(s) à traiter")
+            for i, doc in enumerate(selected_docs):
+                progress = (i + 1) / len(selected_docs)
+                progress_bar.progress(progress)
+                status_text.text(f"📄 {doc['name']} ({i+1}/{len(selected_docs)})")
 
-                    log_container = st.container()
-                    progress_bar = st.progress(0)
-                    status_text = st.empty()
+                result = indexer.index_from_drive(
+                    doc_id=doc["id"],
+                    doc_name=doc["name"],
+                    force_reindex=force_reindex,
+                    user=current_user,
+                )
 
-                    total_indexed = 0
-                    total_skipped = 0
-                    total_errors = 0
+                with log_container:
+                    if result["status"] == "indexed":
+                        total_indexed += 1
+                        st.success(f"✅ {doc['name']}")
+                    elif result["status"] == "skipped":
+                        total_skipped += 1
+                        st.info(f"⏭️ {doc['name']} (déjà indexé)")
+                    else:
+                        total_errors += 1
+                        st.error(f"❌ {doc['name']}: {result.get('message', 'Erreur')}")
 
-                    for i, file_path in enumerate(all_files):
-                        progress = (i + 1) / len(all_files)
-                        progress_bar.progress(progress)
-                        status_text.text(f"📄 {file_path.name} ({i+1}/{len(all_files)})")
+            progress_bar.progress(1.0)
+            status_text.text("✅ Indexation terminée !")
 
-                        result = indexer.index_single_file(file_path, force_reindex=force_reindex, user=current_user)
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("📥 Indexés", total_indexed)
+            with col2:
+                st.metric("⏭️ Ignorés", total_skipped)
+            with col3:
+                st.metric("❌ Erreurs", total_errors)
 
-                        with log_container:
-                            if result["status"] == "indexed":
-                                total_indexed += 1
-                                st.success(f"✅ {file_path.name}")
-                            elif result["status"] == "skipped":
-                                total_skipped += 1
-                                st.info(f"⏭️ {file_path.name} (déjà indexé)")
-                            else:
-                                total_errors += 1
-                                st.error(f"❌ {file_path.name}: {result.get('message', 'Erreur')}")
+            # Invalider le cache de l'index
+            _load_index.clear()
 
-                    progress_bar.progress(1.0)
-                    status_text.text("✅ Indexation terminée !")
+            st.balloons()
 
-                    col1, col2, col3 = st.columns(3)
-                    with col1:
-                        st.metric("📥 Indexés", total_indexed)
-                    with col2:
-                        st.metric("⏭️ Ignorés", total_skipped)
-                    with col3:
-                        st.metric("❌ Erreurs", total_errors)
-
-                    if "files_to_index" in st.session_state:
-                        del st.session_state["files_to_index"]
-
-                    st.balloons()
-
-            except Exception as e:
-                st.error(f"❌ Erreur lors de l'indexation: {str(e)}")
-                st.exception(e)
-            finally:
-                storage.release_lock("indexation", current_user)
+        except Exception as e:
+            st.error(f"❌ Erreur lors de l'indexation: {str(e)}")
+            st.exception(e)
+        finally:
+            storage.release_lock("indexation", current_user)
 
 
 # ============================================================

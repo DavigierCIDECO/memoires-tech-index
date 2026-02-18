@@ -1,6 +1,7 @@
 """Indexation des mémoires techniques avec génération de résumés via Claude."""
 import json
 import logging
+import tempfile
 from pathlib import Path
 from typing import Dict, List, Optional
 from datetime import datetime
@@ -824,6 +825,44 @@ POSITIONNEMENT: [positionnement]"""
         self._save_index(index)
 
         return {"status": "indexed", "message": "Indexé avec succès", "filename": file_path.name}
+
+    def index_from_drive(self, doc_id: str, doc_name: str, force_reindex: bool = False, user: str = "David") -> Dict:
+        """Indexe un document depuis Google Drive.
+
+        Télécharge le fichier en local temporaire, l'indexe, puis ajoute les métadonnées Drive.
+        """
+        storage = config.get_storage()
+
+        # Télécharger le document
+        data = storage.download_document(doc_id)
+        if not data:
+            return {"status": "error", "message": "Impossible de télécharger le document depuis le Drive"}
+
+        # Écrire dans un fichier temporaire avec le bon suffixe
+        suffix = Path(doc_name).suffix
+        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+            tmp.write(data)
+            tmp_path = Path(tmp.name)
+
+        try:
+            result = self.index_single_file(tmp_path, force_reindex=force_reindex, user=user)
+
+            # Si indexé avec succès, mettre à jour les métadonnées Drive
+            if result["status"] == "indexed":
+                index = self._load_existing_index()
+                for doc in index["documents"]:
+                    if doc["filename"] == tmp_path.name:
+                        doc["filename"] = doc_name
+                        doc["file_path"] = ""
+                        doc["gdrive_file_id"] = doc_id
+                        doc["gdrive_link"] = storage.get_document_link(doc_id)
+                        break
+                self._save_index(index)
+                result["filename"] = doc_name
+
+            return result
+        finally:
+            tmp_path.unlink(missing_ok=True)
 
     def index_directory(self, directory: Path, force_reindex: bool = False, user: str = "David"):
         """Indexe tous les documents d'un répertoire ou un fichier individuel."""

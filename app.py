@@ -1085,18 +1085,16 @@ def tab_admin(index):
 
     admin_section = st.radio(
         "Section :",
-        ["🎓 Améliorations IA", "📚 Règles apprises", "🔄 Cycle d'apprentissage", "🔧 Migration index"],
+        ["🔄 Cycle d'apprentissage", "🎓 Améliorations IA", "📚 Règles apprises"],
         horizontal=True,
     )
 
-    if admin_section == "🎓 Améliorations IA":
+    if admin_section == "🔄 Cycle d'apprentissage":
+        _admin_learning_cycle()
+    elif admin_section == "🎓 Améliorations IA":
         _admin_improvements()
     elif admin_section == "📚 Règles apprises":
         _admin_learned_rules()
-    elif admin_section == "🔄 Cycle d'apprentissage":
-        _admin_learning_cycle()
-    elif admin_section == "🔧 Migration index":
-        _admin_migration(index)
 
 
 def _admin_improvements():

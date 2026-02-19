@@ -151,9 +151,16 @@ def score_illustration_relevance(illust: Dict, query: str) -> float:
 
 
 def _display_document_link(doc: Dict):
-    """Affiche un lien vers le document (chemin local ou lien Drive)."""
-    if doc.get("gdrive_link"):
-        st.markdown(f"[Ouvrir dans Google Drive]({doc['gdrive_link']})")
+    """Affiche un lien de téléchargement et un lien vers le dossier Drive."""
+    gdrive_id = doc.get("gdrive_file_id")
+    if gdrive_id:
+        download_url = f"https://drive.google.com/uc?export=download&id={gdrive_id}"
+        folder_url = f"https://drive.google.com/drive/folders/{config.GDRIVE_DOCS_FOLDER_ID}"
+        col1, col2 = st.columns(2)
+        with col1:
+            st.markdown(f"[📥 Télécharger le document]({download_url})")
+        with col2:
+            st.markdown(f"[📁 Ouvrir le dossier Drive]({folder_url})")
     elif doc.get("file_path"):
         st.caption(f"📁 {doc['file_path']}")
 

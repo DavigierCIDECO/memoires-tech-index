@@ -386,23 +386,31 @@ def tab_recherche(index):
     with col2:
         search_btn = st.button("🔍 Rechercher", type="primary", use_container_width=True)
 
+    # Lancer la recherche et stocker les résultats en session
     if search_btn and query:
         with st.spinner("🔄 Recherche en cours..."):
             try:
                 finder = SimilarityFinder()
                 results = finder.find_similar(query, is_file=False, max_results=10)
-
-                if results:
-                    st.success(f"✅ {len(results)} document(s) similaire(s) trouvé(s)")
-                    if config.GDRIVE_DOCS_FOLDER_ID:
-                        folder_url = f"https://drive.google.com/drive/folders/{config.GDRIVE_DOCS_FOLDER_ID}"
-                        st.markdown(f"[📁 Ouvrir le dossier Drive partagé]({folder_url})")
-                    for i, doc in enumerate(results, 1):
-                        display_result(doc, i, query)
-                else:
-                    st.warning("Aucun document similaire trouvé. Essayez avec une description différente.")
+                st.session_state["search_results"] = results
+                st.session_state["search_query"] = query
             except Exception as e:
                 st.error(f"❌ Erreur lors de la recherche: {str(e)}")
+                st.session_state["search_results"] = None
+
+    # Afficher les résultats (persistants après rerun)
+    results = st.session_state.get("search_results")
+    search_query = st.session_state.get("search_query", "")
+    if results is not None:
+        if results:
+            st.success(f"✅ {len(results)} document(s) similaire(s) trouvé(s)")
+            if config.GDRIVE_DOCS_FOLDER_ID:
+                folder_url = f"https://drive.google.com/drive/folders/{config.GDRIVE_DOCS_FOLDER_ID}"
+                st.markdown(f"[📁 Ouvrir le dossier Drive partagé]({folder_url})")
+            for i, doc in enumerate(results, 1):
+                display_result(doc, i, search_query)
+        else:
+            st.warning("Aucun document similaire trouvé. Essayez avec une description différente.")
 
 
 # ============================================================

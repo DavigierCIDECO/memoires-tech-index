@@ -449,6 +449,18 @@ def tab_validation(index):
 
     st.info(f"🟡 {len(non_validated)} document(s) en attente de validation")
 
+    # Bouton de validation en masse
+    if st.button(f"✅ Tout valider ({len(non_validated)} documents)", type="primary"):
+        current_user = get_current_user()
+        for doc in non_validated:
+            validate_document(doc, current_user)
+        _save_index(index)
+        _load_index.clear()
+        st.success(f"✅ {len(non_validated)} document(s) validé(s)")
+        st.rerun()
+
+    st.markdown("---")
+
     # Trier par date d'indexation (plus récent en premier)
     non_validated.sort(key=lambda d: d.get("indexed_at", ""), reverse=True)
 

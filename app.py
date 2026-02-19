@@ -1006,6 +1006,13 @@ def tab_indexation(index):
                     if result["status"] == "indexed":
                         total_indexed += 1
                         st.success(f"✅ {doc['name']}")
+                        # Afficher le résumé généré
+                        doc_entry = result.get("doc_entry", {})
+                        if doc_entry:
+                            with st.expander(f"📋 Résultat : {doc['name']}", expanded=True):
+                                st.markdown(f"**Résumé :** {doc_entry.get('summary', 'N/A')}")
+                                st.markdown(f"**Mots-clés :** {doc_entry.get('keywords', 'N/A')}")
+                                st.markdown(f"**Thèmes :** {doc_entry.get('themes', 'N/A')}")
                     elif result["status"] == "skipped":
                         total_skipped += 1
                         st.info(f"⏭️ {doc['name']} (déjà indexé)")
@@ -1024,10 +1031,8 @@ def tab_indexation(index):
             with col3:
                 st.metric("❌ Erreurs", total_errors)
 
-            # Invalider le cache de l'index
+            # Invalider le cache pour que les autres onglets voient le nouveau document
             _load_index.clear()
-
-            st.balloons()
 
         except Exception as e:
             st.error(f"❌ Erreur lors de l'indexation: {str(e)}")

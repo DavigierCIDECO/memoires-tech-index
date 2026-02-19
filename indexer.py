@@ -824,7 +824,12 @@ POSITIONNEMENT: [positionnement]"""
         index["documents"].append(doc_entry)
         self._save_index(index)
 
-        return {"status": "indexed", "message": "Indexé avec succès", "filename": file_path.name}
+        return {
+            "status": "indexed",
+            "message": "Indexé avec succès",
+            "filename": file_path.name,
+            "doc_entry": doc_entry,
+        }
 
     def index_from_drive(self, doc_id: str, doc_name: str, force_reindex: bool = False, user: str = "David") -> Dict:
         """Indexe un document depuis Google Drive.

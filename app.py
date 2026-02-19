@@ -1054,11 +1054,13 @@ def tab_admin(index):
 
     admin_section = st.radio(
         "Section :",
-        ["🔄 Cycle d'apprentissage", "🎓 Améliorations IA", "📚 Règles apprises"],
+        ["✅ Validation des documents", "🔄 Cycle d'apprentissage", "🎓 Améliorations IA", "📚 Règles apprises"],
         horizontal=True,
     )
 
-    if admin_section == "🔄 Cycle d'apprentissage":
+    if admin_section == "✅ Validation des documents":
+        tab_validation(index)
+    elif admin_section == "🔄 Cycle d'apprentissage":
         _admin_learning_cycle()
     elif admin_section == "🎓 Améliorations IA":
         _admin_improvements()
@@ -1232,7 +1234,6 @@ def main():
     tabs = st.tabs([
         "🔍 Recherche",
         "📊 Tableau de bord",
-        "✅ Validation",
         "✏️ Enrichissement",
         "📥 Indexation",
         "🔒 Admin",
@@ -1243,26 +1244,17 @@ def main():
     with tabs[1]:
         tab_dashboard(index)
     with tabs[2]:
-        tab_validation(index)
-    with tabs[3]:
         try:
             tab_enrichissement(index)
         except ValueError as e:
             st.error(f"Erreur de configuration : {e}")
             st.info("Vérifiez que ANTHROPIC_API_KEY est correctement définie dans les secrets.")
-            # Diagnostic
-            import streamlit as _st
-            with st.expander("Diagnostic secrets"):
-                keys_found = list(_st.secrets.keys()) if hasattr(_st, "secrets") else []
-                st.write(f"Clés trouvées dans st.secrets : {keys_found}")
-                st.write(f"config.ANTHROPIC_API_KEY vide : {not config.ANTHROPIC_API_KEY}")
-                st.write(f"config.STORAGE_MODE : {config.STORAGE_MODE}")
-    with tabs[4]:
+    with tabs[3]:
         try:
             tab_indexation(index)
         except ValueError as e:
             st.error(f"Erreur de configuration : {e}")
-    with tabs[5]:
+    with tabs[4]:
         try:
             tab_admin(index)
         except ValueError as e:

@@ -151,18 +151,27 @@ def score_illustration_relevance(illust: Dict, query: str) -> float:
 
 
 def _display_document_link(doc: Dict):
-    """Affiche un lien de téléchargement et un lien vers le dossier Drive."""
+    """Affiche un bouton de téléchargement du document via le service account."""
     gdrive_id = doc.get("gdrive_file_id")
     if gdrive_id:
-        download_url = f"https://drive.google.com/uc?export=download&id={gdrive_id}"
-        folder_url = f"https://drive.google.com/drive/folders/{config.GDRIVE_DOCS_FOLDER_ID}"
-        col1, col2 = st.columns(2)
-        with col1:
-            st.markdown(f"[📥 Télécharger le document]({download_url})")
-        with col2:
-            st.markdown(f"[📁 Ouvrir le dossier Drive]({folder_url})")
+        file_hash = doc.get("file_hash", gdrive_id)
+        filename = doc.get("filename", "document")
+        st.download_button(
+            label=f"📥 Télécharger {filename}",
+            data=_download_doc_bytes(gdrive_id),
+            file_name=filename,
+            key=f"dl_{file_hash}",
+        )
     elif doc.get("file_path"):
         st.caption(f"📁 {doc['file_path']}")
+
+
+@st.cache_data(ttl=300)
+def _download_doc_bytes(gdrive_id: str) -> bytes:
+    """Télécharge un document via le service account. Cached 5 min."""
+    storage = _get_storage()
+    data = storage.download_document(gdrive_id)
+    return data or b""
 
 
 def display_result(doc: Dict, rank: int, query: str = ""):
@@ -385,6 +394,9 @@ def tab_recherche(index):
 
                 if results:
                     st.success(f"✅ {len(results)} document(s) similaire(s) trouvé(s)")
+                    if config.GDRIVE_DOCS_FOLDER_ID:
+                        folder_url = f"https://drive.google.com/drive/folders/{config.GDRIVE_DOCS_FOLDER_ID}"
+                        st.markdown(f"[📁 Ouvrir le dossier Drive partagé]({folder_url})")
                     for i, doc in enumerate(results, 1):
                         display_result(doc, i, query)
                 else:

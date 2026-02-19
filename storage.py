@@ -118,6 +118,19 @@ class StorageBackend(ABC):
         """
         ...
 
+    @abstractmethod
+    def rename_document(self, doc_id: str, new_name: str) -> bool:
+        """Renomme un document sur le backend de stockage.
+
+        Args:
+            doc_id: Identifiant du document (chemin local ou ID Drive)
+            new_name: Nouveau nom du fichier
+
+        Returns:
+            True si le renommage a réussi
+        """
+        ...
+
     # --- Verrous ---
     @abstractmethod
     def acquire_lock(self, name: str, owner: str) -> bool:

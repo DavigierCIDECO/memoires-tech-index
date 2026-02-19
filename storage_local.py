@@ -116,6 +116,15 @@ class LocalStorage(StorageBackend):
         """En local, retourne le chemin du fichier."""
         return doc_id
 
+    def rename_document(self, doc_id: str, new_name: str) -> bool:
+        """Renomme un fichier local."""
+        old_path = Path(doc_id)
+        if not old_path.exists():
+            return False
+        new_path = old_path.parent / new_name
+        old_path.rename(new_path)
+        return True
+
     # --- Verrous ---
 
     def _lock_path(self, name: str) -> Path:

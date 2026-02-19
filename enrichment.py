@@ -142,50 +142,34 @@ class EnrichmentManager:
                 "new_filename": new_filename,
             }
 
-        # Déterminer le chemin physique
-        if source_directory:
-            old_path = Path(source_directory) / old_filename
+        # Renommer le fichier sur le backend de stockage
+        storage = config.get_storage()
+        gdrive_id = doc.get("gdrive_file_id")
+
+        if gdrive_id:
+            # Mode Drive : renommer via l'API
+            renamed = storage.rename_document(gdrive_id, new_filename)
         else:
-            old_path = Path(doc.get("file_path", ""))
+            # Mode local : renommer le fichier physique
+            file_path = doc.get("file_path", "")
+            if source_directory:
+                file_path = str(Path(source_directory) / old_filename)
+            renamed = storage.rename_document(file_path, new_filename)
 
-        # Validation : fichier source existe
-        if not old_path.exists():
+        if not renamed:
             return {
                 "success": False,
-                "message": f"Fichier source introuvable : {old_path}",
+                "message": "Erreur lors du renommage du fichier sur le stockage",
                 "old_filename": old_filename,
                 "new_filename": new_filename,
             }
 
-        new_path = old_path.parent / new_filename
-
-        # Validation : fichier cible n'existe pas déjà
-        if new_path.exists():
-            return {
-                "success": False,
-                "message": f"Un fichier avec le nom '{new_filename}' existe déjà dans le répertoire",
-                "old_filename": old_filename,
-                "new_filename": new_filename,
-            }
-
-        # Renommer le fichier physique
-        # NOTE: En mode cloud (Google Drive), le renommage utiliserait l'API Drive
-        # au lieu de Path.rename(). Pour l'instant, cette logique reste locale.
+        # Mettre à jour l'index
         try:
-            old_path.rename(new_path)
-        except OSError as e:
-            return {
-                "success": False,
-                "message": f"Erreur lors du renommage physique : {e}",
-                "old_filename": old_filename,
-                "new_filename": new_filename,
-            }
-
-        # Mettre à jour l'index (avec rollback en cas d'erreur)
-        try:
-            # Mettre à jour filename et file_path du document
             doc["filename"] = new_filename
-            doc["file_path"] = str(new_path)
+            if not gdrive_id:
+                old_path = Path(doc.get("file_path", ""))
+                doc["file_path"] = str(old_path.parent / new_filename) if str(old_path) else ""
 
             # Mettre à jour les cross-références dans similar_documents
             for other_doc in index.get("documents", []):
@@ -198,7 +182,6 @@ class EnrichmentManager:
             index["documents"][doc_index] = doc
             self.save_index(index)
 
-            # Logger dans l'historique
             self._save_enrichment_history(
                 file_hash,
                 new_filename,
@@ -226,17 +209,13 @@ class EnrichmentManager:
             }
 
         except Exception as e:
-            # Rollback : renommer le fichier dans l'autre sens
-            logger.error(f"Erreur lors de la mise à jour de l'index, rollback : {e}")
-            try:
-                new_path.rename(old_path)
-                logger.info("Rollback du renommage physique effectué")
-            except OSError as rollback_error:
-                logger.error(f"Échec du rollback : {rollback_error}")
-
+            logger.error(f"Erreur lors de la mise à jour de l'index : {e}")
+            # Tenter un rollback du renommage
+            if gdrive_id:
+                storage.rename_document(gdrive_id, old_filename)
             return {
                 "success": False,
-                "message": f"Erreur lors de la mise à jour de l'index : {e}. Le fichier a été restauré.",
+                "message": f"Erreur lors de la mise à jour de l'index : {e}",
                 "old_filename": old_filename,
                 "new_filename": new_filename,
             }

@@ -478,6 +478,20 @@ class GDriveStorage(StorageBackend):
         """Retourne l'URL de visualisation Google Drive du document."""
         return f"https://drive.google.com/file/d/{doc_id}/view"
 
+    def rename_document(self, doc_id: str, new_name: str) -> bool:
+        """Renomme un fichier sur Google Drive."""
+        try:
+            service = self._get_service()
+            service.files().update(
+                fileId=doc_id,
+                body={"name": new_name},
+                supportsAllDrives=True,
+            ).execute()
+            return True
+        except Exception as e:
+            logger.error(f"Erreur renommage Drive {doc_id}: {e}")
+            return False
+
     # ------------------------------------------------------------------
     # Verrous (locks)
     # ------------------------------------------------------------------

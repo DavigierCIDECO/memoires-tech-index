@@ -850,13 +850,16 @@ POSITIONNEMENT: [positionnement]"""
             tmp_path = Path(tmp.name)
 
         try:
+            # Calculer le hash avant indexation pour retrouver le document après
+            file_hash = self._compute_file_hash(tmp_path)
+
             result = self.index_single_file(tmp_path, force_reindex=force_reindex, user=user)
 
             # Si indexé avec succès, mettre à jour les métadonnées Drive
             if result["status"] == "indexed":
                 index = self._load_existing_index()
                 for doc in index["documents"]:
-                    if doc["filename"] == tmp_path.name:
+                    if doc["file_hash"] == file_hash:
                         doc["filename"] = doc_name
                         doc["file_path"] = ""
                         doc["gdrive_file_id"] = doc_id

@@ -55,6 +55,13 @@ st.markdown("""
         border-radius: 1rem;
         font-weight: bold;
     }
+    .date-badge {
+        background-color: #6c757d;
+        color: white;
+        padding: 0.25rem 0.75rem;
+        border-radius: 1rem;
+        font-size: 0.85em;
+    }
     .info-section {
         margin-top: 0.5rem;
         padding: 0.5rem;
@@ -183,11 +190,13 @@ def display_result(doc: Dict, rank: int, query: str = ""):
             st.markdown(f"### {rank}")
 
         with col2:
+            indexed_at = doc.get("indexed_at", "")[:10] if doc.get("indexed_at") else ""
+            date_html = f' <span class="date-badge">Indexé le {indexed_at}</span>' if indexed_at else ""
             st.markdown(f"""
             <div class="result-card">
                 <h3>
                     {doc['filename']}
-                    <span class="score-badge">Score: {doc['similarity_score']:.1f}</span>
+                    <span class="score-badge">Score: {doc['similarity_score']:.1f}</span>{date_html}
                 </h3>
             </div>
             """, unsafe_allow_html=True)

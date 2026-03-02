@@ -42,7 +42,7 @@ SUPPORTED_EXTENSIONS = [".docx", ".pdf", ".doc", ".docm"]
 
 # Paramètres de résumé
 SUMMARY_MAX_TOKENS = 1500  # Augmenté pour capturer tous les champs enrichis (ILLUSTR + SECTIONS)
-SUMMARY_MODEL = "claude-3-5-haiku-20241022"  # Modèle rapide et économique pour les résumés
+SUMMARY_MODEL = "claude-haiku-4-5-20251001"  # Modèle rapide et économique pour les résumés
 
 # Paramètres pour analyse différentielle
 SIMILARITY_THRESHOLD = 10.0  # Score minimum pour détecter une similarité de base

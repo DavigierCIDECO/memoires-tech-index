@@ -129,7 +129,7 @@ TECHNIQUES: [tech1, tech2, ...] (ou "aucune")
         try:
             # Appel Vision API
             message = self.client.messages.create(
-                model="claude-3-opus-20240229",  # Modèle Opus avec vision
+                model="claude-opus-4-6",  # Modèle Opus avec vision
                 max_tokens=1024,
                 messages=[{
                     "role": "user",

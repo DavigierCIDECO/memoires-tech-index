@@ -100,6 +100,61 @@ class DocumentIndexer:
         """
         return hashlib.md5(data).hexdigest()
 
+    def _normalize_markdown_response(self, response_text: str) -> str:
+        """Convertit une réponse Markdown de Claude en format texte brut attendu par le parseur.
+
+        Gère deux patterns fréquents :
+        - "## N. CHAMP\\nvaleur sur la ligne suivante" → "CHAMP: valeur"
+        - "**CHAMP:** valeur" → "CHAMP: valeur"
+        """
+        import re
+
+        # Correspondances sections Markdown → préfixes attendus
+        SECTION_MAP = {
+            "RÉSUMÉ": "RÉSUMÉ",
+            "MOTS-CLÉS": "MOTS-CLÉS",
+            "THÈMES": "THÈMES",
+        }
+
+        lines = response_text.split("\n")
+        output = []
+        i = 0
+
+        while i < len(lines):
+            line = lines[i].strip()
+
+            if not line:
+                i += 1
+                continue
+
+            # Pattern "## N. CHAMP" → valeur sur la ligne suivante
+            header_match = re.match(r'^#+\s*(?:\d+\.?\s+)?(.+)$', line)
+            if header_match:
+                field = header_match.group(1).strip().rstrip(':').upper()
+                if field in SECTION_MAP:
+                    # Chercher la prochaine ligne non-vide comme valeur
+                    j = i + 1
+                    while j < len(lines) and not lines[j].strip():
+                        j += 1
+                    if j < len(lines):
+                        next_line = lines[j].strip()
+                        # Ne prendre que si ce n'est pas un autre header ou champ bold
+                        if not next_line.startswith('#') and not re.match(r'^\*{2}[A-Z]', next_line):
+                            value = next_line.replace('**', '').strip()
+                            output.append(f"{SECTION_MAP[field]}: {value}")
+                            i = j + 1
+                            continue
+                i += 1
+                continue
+
+            # Pattern "**CHAMP:** valeur" → supprimer les **
+            clean = line.replace('**', '').strip()
+            if clean:
+                output.append(clean)
+            i += 1
+
+        return "\n".join(output)
+
     def _parse_enhanced_analysis(self, response_text: str) -> Dict:
         """Parse la réponse enrichie de Claude avec caractéristiques structurées.
 
@@ -247,7 +302,9 @@ class DocumentIndexer:
 
         learned_rules_section = self._format_learned_rules_for_prompt()
 
-        prompt = f"""Analysez ce mémoire technique et fournissez une analyse structurée :
+        prompt = f"""⚠️ RÈGLE ABSOLUE : Répondre en TEXTE BRUT UNIQUEMENT. Interdiction d'utiliser du Markdown (pas de #, pas de **, pas de *, pas de listes à tirets pour les champs). Chaque champ sur UNE SEULE LIGNE avec le format exact spécifié en bas.
+
+Analysez ce mémoire technique et fournissez une analyse structurée :
 
 1. RÉSUMÉ : Un résumé concis en 2-3 phrases du contenu principal
 
@@ -400,7 +457,7 @@ Nom du fichier : {filename}
 Contenu :
 {text_to_analyze}
 
-FORMAT DE RÉPONSE STRICT :
+FORMAT DE RÉPONSE STRICT (texte brut, pas de Markdown, pas de #, pas de **) :
 RÉSUMÉ: [résumé]
 MOTS-CLÉS: [mot1, mot2, ...]
 THÈMES: [thème1, thème2, ...]
@@ -446,7 +503,8 @@ PAS comme ceci:
             )
 
             response_text = message.content[0].text
-            result = self._parse_enhanced_analysis(response_text)
+            normalized = self._normalize_markdown_response(response_text)
+            result = self._parse_enhanced_analysis(normalized)
             result["_raw_response"] = response_text
             return result
 

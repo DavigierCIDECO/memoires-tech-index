@@ -917,7 +917,7 @@ POSITIONNEMENT: [positionnement]"""
                         doc["filename"] = doc_name
                         doc["file_path"] = ""
                         doc["gdrive_file_id"] = doc_id
-                        doc["gdrive_link"] = storage.get_document_link(doc_id)
+                        doc["gdrive_link"] = None  # supprimé (téléchargement désactivé)
                         break
                 self._save_index(index)
                 result["filename"] = doc_name

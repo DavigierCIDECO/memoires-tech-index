@@ -554,7 +554,8 @@ IMPORTANT:
             }
 
     def apply_enrichment(
-        self, file_hash: str, modifications: Dict, user_validated: bool = True
+        self, file_hash: str, modifications: Dict, user_validated: bool = True,
+        user: Optional[str] = None
     ) -> bool:
         """Applique les enrichissements validés par l'utilisateur.
 
@@ -826,12 +827,21 @@ IMPORTANT:
         doc["manually_enriched"] = True
         doc["last_manual_enrichment"] = datetime.now().isoformat()
 
-        # Sauvegarder l'index mis à jour
+        # Marquer le statut "enrichi" si un utilisateur est fourni
+        if user:
+            from models import mark_enriched as _mark_enriched
+            _mark_enriched(doc, user)
+
+        # Sauvegarder l'index mis à jour (une seule écriture atomique)
         index["documents"][doc_index] = doc
         self.save_index(index)
 
         # Sauvegarder dans l'historique des enrichissements (pour apprentissage)
-        self._save_enrichment_history(file_hash, doc.get("filename"), modifications)
+        try:
+            self._save_enrichment_history(file_hash, doc.get("filename"), modifications)
+        except Exception as e:
+            logger.error(f"Erreur lors de la sauvegarde de l'historique: {e}")
+            # Ne pas bloquer l'enrichissement si l'historique échoue
 
         # Déclencher l'apprentissage automatique
         try:

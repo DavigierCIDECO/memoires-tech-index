@@ -543,6 +543,12 @@ def tab_enrichissement(index):
     """Onglet d'enrichissement manuel des documents."""
     st.markdown("### ✏️ Enrichir l'indexation d'un document")
 
+    # Afficher le message de succès persistant après un rerun
+    just_enriched = st.session_state.pop("_enrich_success", False)
+    if just_enriched:
+        st.success("✅ Enrichissement appliqué avec succès ! Les modifications sont visibles dans l'état actuel ci-dessous.")
+        st.balloons()
+
     enrichment_mgr = EnrichmentManager()
     stats = enrichment_mgr.get_enrichment_stats()
 
@@ -622,7 +628,7 @@ def tab_enrichissement(index):
     st.markdown("---")
 
     # État actuel
-    with st.expander("📋 État actuel de l'indexation", expanded=False):
+    with st.expander("📋 État actuel de l'indexation", expanded=just_enriched):
         doc_format = selected_doc.get('document_format', 'non spécifié')
         if doc_format and doc_format != 'non spécifié':
             st.info(f"📄 **Format du document:** {doc_format}")
@@ -913,20 +919,18 @@ def tab_enrichissement(index):
                     success = enrichment_mgr.apply_enrichment(
                         st.session_state["pending_doc_hash"],
                         st.session_state["pending_modifications"],
-                        user_validated=True
+                        user_validated=True,
+                        user=get_current_user(),
                     )
                     if success:
-                        # Marquer comme enrichi
-                        for doc in index.get("documents", []):
-                            if doc.get("file_hash") == st.session_state["pending_doc_hash"]:
-                                mark_enriched(doc, get_current_user())
-                                break
-                        _save_index(index)
+                        # apply_enrichment a déjà sauvegardé l'index avec les modifications ET le statut enrichi.
+                        # Invalider le cache Streamlit pour que le rerun charge la version à jour.
+                        _load_index.clear()
 
-                        st.success("✅ Enrichissement appliqué avec succès!")
                         del st.session_state["pending_modifications"]
                         del st.session_state["pending_doc_hash"]
-                        st.balloons()
+                        # Persister le message de succès à travers le rerun
+                        st.session_state["_enrich_success"] = True
                         st.rerun()
                     else:
                         st.error("❌ Échec de l'application de l'enrichissement")

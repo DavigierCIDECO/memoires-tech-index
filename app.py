@@ -987,113 +987,83 @@ def tab_indexation(index):
 
     st.markdown("---")
 
-    force_reindex = st.checkbox(
-        "🔄 Forcer la réindexation (même pour fichiers déjà indexés)",
-        value=False,
-    )
+    # ----------------------------------------------------------------
+    # Section 1 : Indexer de nouveaux documents
+    # ----------------------------------------------------------------
+    st.markdown("**📥 Nouveaux documents**")
 
-    # Liste des documents à indexer
-    if force_reindex:
-        available_docs = drive_docs
-    else:
-        available_docs = new_docs
-
-    if not available_docs:
+    if not new_docs:
         st.success("✅ Tous les documents du Drive sont déjà indexés !")
-        return
+    else:
+        st.markdown(f"**{len(new_docs)} document(s) non encore indexé(s) :**")
 
-    st.markdown(f"**{len(available_docs)} document(s) disponible(s) :**")
+        select_all = st.checkbox("Tout sélectionner", value=False, key="select_all_docs")
 
-    # Sélection par checkboxes
-    select_all = st.checkbox("Tout sélectionner", value=False, key="select_all_docs")
+        selected_docs = []
+        for doc in new_docs:
+            size_kb = int(doc.get("size", 0)) / 1024
+            label = f"{doc['name']} ({size_kb:.0f} Ko)"
+            if st.checkbox(label, value=select_all, key=f"doc_{doc['id']}"):
+                selected_docs.append(doc)
 
-    selected_docs = []
-    for doc in available_docs:
-        size_kb = int(doc.get("size", 0)) / 1024
-        label = f"{doc['name']} ({size_kb:.0f} Ko)"
-        if st.checkbox(label, value=select_all, key=f"doc_{doc['id']}"):
-            selected_docs.append(doc)
+        col1, col2, col3 = st.columns([0.3, 0.4, 0.3])
+        with col2:
+            index_btn = st.button(
+                f"🚀 Indexer {len(selected_docs)} document(s)",
+                type="primary",
+                use_container_width=True,
+                disabled=len(selected_docs) == 0,
+                key="index_new_btn",
+            )
 
-    st.markdown("---")
+        if index_btn and selected_docs:
+            if not storage.acquire_lock("indexation", current_user):
+                st.error("🔒 Impossible d'acquérir le verrou d'indexation")
+            else:
+                try:
+                    indexer = DocumentIndexer()
+                    log_container = st.container()
+                    progress_bar = st.progress(0)
+                    status_text = st.empty()
+                    total_indexed = 0
+                    total_errors = 0
 
-    col1, col2, col3 = st.columns([0.3, 0.4, 0.3])
-    with col2:
-        index_btn = st.button(
-            f"🚀 Indexer {len(selected_docs)} document(s)",
-            type="primary",
-            use_container_width=True,
-            disabled=len(selected_docs) == 0,
-        )
+                    for i, doc in enumerate(selected_docs):
+                        progress_bar.progress((i + 1) / len(selected_docs))
+                        status_text.text(f"📄 {doc['name']} ({i+1}/{len(selected_docs)})")
+                        result = indexer.index_from_drive(
+                            doc_id=doc["id"], doc_name=doc["name"],
+                            force_reindex=False, user=current_user,
+                        )
+                        with log_container:
+                            if result["status"] == "indexed":
+                                total_indexed += 1
+                                doc_entry = result.get("doc_entry", {})
+                                summary = doc_entry.get("summary", "") if doc_entry else ""
+                                if summary and summary != "Erreur lors de la génération du résumé":
+                                    st.success(f"✅ {doc['name']}")
+                                else:
+                                    st.warning(f"⚠️ {doc['name']} — indexé mais analyse vide")
+                                if doc_entry:
+                                    with st.expander(f"📋 {doc['name']}", expanded=True):
+                                        st.markdown(f"**Résumé :** {doc_entry.get('summary', 'N/A')}")
+                                        st.markdown(f"**Mots-clés :** {doc_entry.get('keywords', 'N/A')}")
+                                        st.markdown(f"**Thèmes :** {doc_entry.get('themes', 'N/A')}")
+                            else:
+                                total_errors += 1
+                                st.error(f"❌ {doc['name']}: {result.get('message', 'Erreur')}")
 
-    if index_btn and selected_docs:
-        # Acquérir le verrou
-        if not storage.acquire_lock("indexation", current_user):
-            st.error("🔒 Impossible d'acquérir le verrou d'indexation")
-            return
-
-        try:
-            indexer = DocumentIndexer()
-
-            log_container = st.container()
-            progress_bar = st.progress(0)
-            status_text = st.empty()
-
-            total_indexed = 0
-            total_skipped = 0
-            total_errors = 0
-
-            for i, doc in enumerate(selected_docs):
-                progress = (i + 1) / len(selected_docs)
-                progress_bar.progress(progress)
-                status_text.text(f"📄 {doc['name']} ({i+1}/{len(selected_docs)})")
-
-                result = indexer.index_from_drive(
-                    doc_id=doc["id"],
-                    doc_name=doc["name"],
-                    force_reindex=force_reindex,
-                    user=current_user,
-                )
-
-                with log_container:
-                    if result["status"] == "indexed":
-                        total_indexed += 1
-                        doc_entry = result.get("doc_entry", {})
-                        summary = doc_entry.get("summary", "") if doc_entry else ""
-                        if summary and summary != "Erreur lors de la génération du résumé":
-                            st.success(f"✅ {doc['name']}")
-                        else:
-                            st.warning(f"⚠️ {doc['name']} — indexé mais analyse vide (vérifier le document)")
-                        if doc_entry:
-                            with st.expander(f"📋 Résultat : {doc['name']}", expanded=True):
-                                st.markdown(f"**Résumé :** {doc_entry.get('summary', 'N/A')}")
-                                st.markdown(f"**Mots-clés :** {doc_entry.get('keywords', 'N/A')}")
-                                st.markdown(f"**Thèmes :** {doc_entry.get('themes', 'N/A')}")
-                    elif result["status"] == "skipped":
-                        total_skipped += 1
-                        st.info(f"⏭️ {doc['name']} (déjà indexé)")
-                    else:
-                        total_errors += 1
-                        st.error(f"❌ {doc['name']}: {result.get('message', 'Erreur')}")
-
-            progress_bar.progress(1.0)
-            status_text.text("✅ Indexation terminée !")
-
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                st.metric("📥 Indexés", total_indexed)
-            with col2:
-                st.metric("⏭️ Ignorés", total_skipped)
-            with col3:
-                st.metric("❌ Erreurs", total_errors)
-
-            # Invalider le cache pour que les autres onglets voient le nouveau document
-            _load_index.clear()
-
-        except Exception as e:
-            st.error(f"❌ Erreur lors de l'indexation: {str(e)}")
-            st.exception(e)
-        finally:
-            storage.release_lock("indexation", current_user)
+                    progress_bar.progress(1.0)
+                    status_text.text("✅ Indexation terminée !")
+                    col1, col2 = st.columns(2)
+                    col1.metric("📥 Indexés", total_indexed)
+                    col2.metric("❌ Erreurs", total_errors)
+                    _load_index.clear()
+                except Exception as e:
+                    st.error(f"❌ Erreur lors de l'indexation: {str(e)}")
+                    st.exception(e)
+                finally:
+                    storage.release_lock("indexation", current_user)
 
     # ----------------------------------------------------------------
     # Section : Réindexer un document déjà indexé

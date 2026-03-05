@@ -1130,7 +1130,7 @@ def tab_indexation(index):
                             if summary and summary != "Erreur lors de la génération du résumé":
                                 st.success(f"✅ Réindexation réussie !")
                             else:
-                                st.warning("⚠️ Réindexé mais analyse vide — le document est peut-être illisible (PDF scanné, fichier corrompu ?)")
+                                st.warning("⚠️ Réindexé mais analyse vide.")
                             if doc_entry:
                                 with st.expander("📋 Résultat", expanded=True):
                                     st.markdown(f"**Résumé :** {doc_entry.get('summary', 'N/A')}")
@@ -1139,6 +1139,10 @@ def tab_indexation(index):
                                     chars = doc_entry.get("characteristics", {})
                                     if chars.get("equipment"):
                                         st.markdown(f"**Équipements :** {', '.join(chars['equipment'])}")
+                            raw = result.get("_raw_response", "")
+                            if raw and (not summary or summary == "Erreur lors de la génération du résumé"):
+                                with st.expander("🔍 Réponse brute Claude (diagnostic)", expanded=True):
+                                    st.code(raw[:3000], language=None)
                         else:
                             st.error(f"❌ Échec : {result.get('message', 'Erreur')}")
                         _load_index.clear()

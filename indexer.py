@@ -446,20 +446,15 @@ PAS comme ceci:
             )
 
             response_text = message.content[0].text
-
-            # DEBUG: Sauvegarder la réponse brute pour diagnostic
-            debug_file = Path("debug_claude_response.txt")
-            with open(debug_file, "w", encoding="utf-8") as f:
-                f.write(f"=== RÉPONSE CLAUDE POUR {filename} ===\n\n")
-                f.write(response_text)
-                f.write("\n\n=== FIN RÉPONSE ===\n")
-
-            return self._parse_enhanced_analysis(response_text)
+            result = self._parse_enhanced_analysis(response_text)
+            result["_raw_response"] = response_text
+            return result
 
         except Exception as e:
             logger.error(f"Erreur lors de la génération du résumé: {e}")
             return {
                 "summary": "Erreur lors de la génération du résumé",
+                "_raw_response": f"EXCEPTION: {e}",
                 "keywords": "",
                 "themes": "",
                 "characteristics": {
@@ -829,6 +824,7 @@ POSITIONNEMENT: [positionnement]"""
             "message": "Indexé avec succès",
             "filename": file_path.name,
             "doc_entry": doc_entry,
+            "_raw_response": metadata.get("_raw_response", ""),
         }
 
     def index_from_drive(self, doc_id: str, doc_name: str, force_reindex: bool = False, user: str = "David") -> Dict:

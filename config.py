@@ -41,7 +41,7 @@ ADMIN_PASSWORD = _get_secret("ADMIN_PASSWORD", "")
 SUPPORTED_EXTENSIONS = [".docx", ".pdf", ".doc", ".docm"]
 
 # Paramètres de résumé
-SUMMARY_MAX_TOKENS = 1500  # Augmenté pour capturer tous les champs enrichis (ILLUSTR + SECTIONS)
+SUMMARY_MAX_TOKENS = 3000  # Augmenté pour éviter la troncature sur documents complexes
 SUMMARY_MODEL = "claude-haiku-4-5-20251001"  # Modèle rapide et économique pour les résumés
 
 # Paramètres pour analyse différentielle

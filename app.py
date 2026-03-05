@@ -1057,9 +1057,12 @@ def tab_indexation(index):
                 with log_container:
                     if result["status"] == "indexed":
                         total_indexed += 1
-                        st.success(f"✅ {doc['name']}")
-                        # Afficher le résumé généré
                         doc_entry = result.get("doc_entry", {})
+                        summary = doc_entry.get("summary", "") if doc_entry else ""
+                        if summary and summary != "Erreur lors de la génération du résumé":
+                            st.success(f"✅ {doc['name']}")
+                        else:
+                            st.warning(f"⚠️ {doc['name']} — indexé mais analyse vide (vérifier le document)")
                         if doc_entry:
                             with st.expander(f"📋 Résultat : {doc['name']}", expanded=True):
                                 st.markdown(f"**Résumé :** {doc_entry.get('summary', 'N/A')}")
@@ -1091,6 +1094,89 @@ def tab_indexation(index):
             st.exception(e)
         finally:
             storage.release_lock("indexation", current_user)
+
+    # ----------------------------------------------------------------
+    # Section : Réindexer un document déjà indexé
+    # ----------------------------------------------------------------
+    st.markdown("---")
+    st.markdown("### 🔄 Réindexer un document déjà indexé")
+    st.caption("Relancez l'analyse Claude sur un document déjà présent dans l'index (utile si l'indexation a produit des champs vides).")
+
+    indexed_on_drive = [d for d in drive_docs
+                        if d["id"] in indexed_drive_ids or d["name"] in indexed_filenames]
+
+    if not indexed_on_drive:
+        st.info("Aucun document indexé trouvé dans le Drive.")
+    else:
+        reindex_search = st.text_input(
+            "🔍 Filtrer :",
+            placeholder="Tapez pour filtrer...",
+            key="reindex_search_term"
+        )
+        filtered_for_reindex = [
+            d for d in indexed_on_drive
+            if reindex_search.lower() in d["name"].lower()
+        ] if reindex_search else indexed_on_drive
+
+        if not filtered_for_reindex:
+            st.warning(f"Aucun document trouvé avec '{reindex_search}'")
+        else:
+            st.caption(f"{len(filtered_for_reindex)} document(s) indexé(s)")
+            selected_reindex_name = st.selectbox(
+                "Document à réindexer :",
+                options=[d["name"] for d in filtered_for_reindex],
+                key="reindex_select"
+            )
+            selected_reindex_doc = next(
+                (d for d in filtered_for_reindex if d["name"] == selected_reindex_name), None
+            )
+
+            col1, col2 = st.columns([0.3, 0.7])
+            with col1:
+                reindex_btn = st.button(
+                    "🔄 Réindexer ce document",
+                    type="primary",
+                    use_container_width=True,
+                    key="reindex_single_btn",
+                    disabled=selected_reindex_doc is None,
+                )
+
+            if reindex_btn and selected_reindex_doc:
+                if not storage.acquire_lock("indexation", current_user):
+                    st.error("🔒 Impossible d'acquérir le verrou d'indexation")
+                else:
+                    try:
+                        with st.spinner(f"🔄 Réindexation de {selected_reindex_doc['name']}..."):
+                            indexer = DocumentIndexer()
+                            result = indexer.index_from_drive(
+                                doc_id=selected_reindex_doc["id"],
+                                doc_name=selected_reindex_doc["name"],
+                                force_reindex=True,
+                                user=current_user,
+                            )
+                        if result["status"] == "indexed":
+                            doc_entry = result.get("doc_entry", {})
+                            summary = doc_entry.get("summary", "") if doc_entry else ""
+                            if summary and summary != "Erreur lors de la génération du résumé":
+                                st.success(f"✅ Réindexation réussie !")
+                            else:
+                                st.warning("⚠️ Réindexé mais analyse vide — le document est peut-être illisible (PDF scanné, fichier corrompu ?)")
+                            if doc_entry:
+                                with st.expander("📋 Résultat", expanded=True):
+                                    st.markdown(f"**Résumé :** {doc_entry.get('summary', 'N/A')}")
+                                    st.markdown(f"**Mots-clés :** {doc_entry.get('keywords', 'N/A')}")
+                                    st.markdown(f"**Thèmes :** {doc_entry.get('themes', 'N/A')}")
+                                    chars = doc_entry.get("characteristics", {})
+                                    if chars.get("equipment"):
+                                        st.markdown(f"**Équipements :** {', '.join(chars['equipment'])}")
+                        else:
+                            st.error(f"❌ Échec : {result.get('message', 'Erreur')}")
+                        _load_index.clear()
+                    except Exception as e:
+                        st.error(f"❌ Erreur : {str(e)}")
+                        st.exception(e)
+                    finally:
+                        storage.release_lock("indexation", current_user)
 
 
 # ============================================================

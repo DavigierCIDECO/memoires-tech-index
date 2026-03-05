@@ -157,28 +157,6 @@ def score_illustration_relevance(illust: Dict, query: str) -> float:
     return score
 
 
-def _display_document_link(doc: Dict):
-    """Affiche un bouton de téléchargement du document via le service account."""
-    gdrive_id = doc.get("gdrive_file_id")
-    if gdrive_id:
-        file_hash = doc.get("file_hash", gdrive_id)
-        filename = doc.get("filename", "document")
-        st.download_button(
-            label=f"📥 Télécharger {filename}",
-            data=_download_doc_bytes(gdrive_id),
-            file_name=filename,
-            key=f"dl_{file_hash}",
-        )
-    elif doc.get("file_path"):
-        st.caption(f"📁 {doc['file_path']}")
-
-
-@st.cache_data(ttl=300)
-def _download_doc_bytes(gdrive_id: str) -> bytes:
-    """Télécharge un document via le service account. Cached 5 min."""
-    storage = _get_storage()
-    data = storage.download_document(gdrive_id)
-    return data or b""
 
 
 def display_result(doc: Dict, rank: int, query: str = ""):
@@ -211,9 +189,6 @@ def display_result(doc: Dict, rank: int, query: str = ""):
                     if doc.get("common_themes"):
                         st.markdown("**🏷️ Thèmes communs:**")
                         st.write(", ".join(doc["common_themes"]))
-
-            # Lien vers le document
-            _display_document_link(doc)
 
             # Aperçu des illustrations exceptionnelles
             if doc.get("special_illustrations"):
@@ -511,9 +486,6 @@ def tab_validation(index):
                 st.markdown(f"**Mots-clés:** {doc.get('keywords', 'N/A')}")
             with col2:
                 st.markdown(f"**Thèmes:** {doc.get('themes', 'N/A')}")
-
-            # Lien vers le document
-            _display_document_link(doc)
 
             st.markdown("---")
 
